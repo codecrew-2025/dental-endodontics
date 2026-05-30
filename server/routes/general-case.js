@@ -14,7 +14,7 @@ const normalizeRole = (value) => String(value || '').trim().toLowerCase().replac
 const XRAY_DATA_URL_PATTERN = /^data:image\/(png|jpeg|jpg);base64,/i;
 const MAX_XRAY_DATA_URL_LENGTH = 8 * 1024 * 1024;
 
-const GENERAL_DEPARTMENT_KEYS = new Set(['general', 'generaldentistry']);
+const GENERAL_DEPARTMENT_KEYS = new Set(['general', 'generaldentistry', 'oralmedicine', 'oralmedicineandradiology']);
 
 const departmentAliasMap = {
   prosthodontics: ['prosthodontics', 'prothodontics', 'prosthondontics'],
@@ -22,7 +22,7 @@ const departmentAliasMap = {
   periodontics: ['periodontics'],
   conservativedentistryandendodontics: ['conservativedentistryandendodontics', 'conservativedentistry', 'endodontics'],
   oralandmaxillofacial: ['oralandmaxillofacial', 'oralmaxillofacial', 'oralsurgery'],
-  general: ['general', 'generaldentistry'],
+  general: ['general', 'generaldentistry', 'oralmedicine', 'oralmedicineandradiology'],
 };
 
 const normalizeLabelToDepartmentKey = (departmentLabel) => {
@@ -437,6 +437,9 @@ router.post(['/', '/save'], auth, requireRole(['doctor', 'chief', 'pg']), async 
       description,
       generalDescription,
       selectedDepartments,
+      referralCurrentIndex: 0,
+      referralHistory: [],
+      referralCompletedAt: null,
       treatmentPlan,
       xrayImage: normalizedXrayImage,
       referredDepartment,
@@ -716,7 +719,7 @@ router.patch('/referred-patients/:id/reschedule', auth, requireRole(['doctor']),
   }
 });
 
-router.get('/assigned-pg-cases', auth, requireRole(['pg']), async (req, res) => {
+router.get('/assigned-pg-cases', auth, requireRole(['pg', 'ug']), async (req, res) => {
   try {
     const pgIdentity = String(req.user?.Identity || '').trim();
 
@@ -899,8 +902,8 @@ router.get('/assigned-pg-cases', auth, requireRole(['pg']), async (req, res) => 
   }
 });
 
-// PG: Approve an assigned referral case
-router.patch('/pg-cases/:id/approve', auth, requireRole(['pg']), async (req, res) => {
+// PG/UG: Approve an assigned referral case
+router.patch('/pg-cases/:id/approve', auth, requireRole(['pg', 'ug']), async (req, res) => {
   try {
     const caseItem = await GeneralCase.findById(req.params.id);
     if (!caseItem) {
@@ -913,7 +916,7 @@ router.patch('/pg-cases/:id/approve', auth, requireRole(['pg']), async (req, res
 
     caseItem.specialistStatus = 'approved';
     caseItem.specialistRescheduleReason = '';
-    caseItem.specialistReviewedBy = req.user?.name || 'PG';
+    caseItem.specialistReviewedBy = req.user?.name || 'PG/UG';
     caseItem.specialistReviewedAt = new Date();
 
     await caseItem.save();
@@ -924,8 +927,8 @@ router.patch('/pg-cases/:id/approve', auth, requireRole(['pg']), async (req, res
   }
 });
 
-// PG: Reschedule an assigned referral case
-router.patch('/pg-cases/:id/reschedule', auth, requireRole(['pg']), async (req, res) => {
+// PG/UG: Reschedule an assigned referral case
+router.patch('/pg-cases/:id/reschedule', auth, requireRole(['pg', 'ug']), async (req, res) => {
   try {
     const { reason = '' } = req.body || {};
     const caseItem = await GeneralCase.findById(req.params.id);
@@ -939,7 +942,7 @@ router.patch('/pg-cases/:id/reschedule', auth, requireRole(['pg']), async (req, 
 
     caseItem.specialistStatus = 'rescheduled';
     caseItem.specialistRescheduleReason = String(reason || '').trim();
-    caseItem.specialistReviewedBy = req.user?.name || 'PG';
+    caseItem.specialistReviewedBy = req.user?.name || 'PG/UG';
     caseItem.specialistReviewedAt = new Date();
     caseItem.assignedPgId = '';
     caseItem.assignedPgName = '';

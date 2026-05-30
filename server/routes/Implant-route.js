@@ -8,6 +8,7 @@ import multer from 'multer';
 import nodemailer from 'nodemailer';
 import dotenv from 'dotenv';
 import { User } from '../models/User.js';
+import { advanceGeneralCaseReferralIfEligible } from '../utils/referralFlow.js';
 
 const router = express.Router();
 
@@ -66,7 +67,7 @@ const upload = multer({
  * @desc    Save a new Implant case sheet (with file upload support)
  * @access  Private (Doctor, Chief)
  */
-router.post('/save', auth, requireRole(['doctor','chief','pg']), upload.single('digitalSignature'), async (req, res) => {
+router.post('/save', auth, requireRole(['doctor','chief','pg','ug']), upload.single('digitalSignature'), async (req, res) => {
   try {
     const { patientId, patientName, doctorId, doctorName } = req.body;
 
@@ -99,6 +100,14 @@ router.post('/save', auth, requireRole(['doctor','chief','pg']), upload.single('
     });
 
     await implant.save();
+
+    if (req.user?.role === 'pg' || req.user?.role === 'ug') {
+      await advanceGeneralCaseReferralIfEligible({
+        patientId,
+        completedDepartmentLabel: 'Prosthodontics',
+        completedBy: req.user,
+      });
+    }
     
     console.log('Implant case saved successfully:', implant._id);
     
@@ -212,7 +221,7 @@ router.get('/get/:id', auth, async (req, res) => {
  * @desc    Create a new Implant case sheet
  * @access  Private
  */
-router.post('/', auth, async (req, res) => {
+router.post('/', auth, requireRole(['doctor','chief','chief-doctor','pg','ug']), async (req, res) => {
   try {
     const { patientId, patientName, doctorId, doctorName } = req.body;
 
@@ -234,6 +243,14 @@ router.post('/', auth, async (req, res) => {
 
     const implant = new ImplantCase(implantData);
     await implant.save();
+
+    if (req.user?.role === 'pg' || req.user?.role === 'ug') {
+      await advanceGeneralCaseReferralIfEligible({
+        patientId,
+        completedDepartmentLabel: 'Prosthodontics',
+        completedBy: req.user,
+      });
+    }
 
     console.log('Implant case saved successfully:', implant._id);
 

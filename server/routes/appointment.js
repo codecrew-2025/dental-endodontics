@@ -664,6 +664,10 @@ router.get("/pg-appointments", auth, requireRole(["doctor", "chief-doctor", "pg"
     const isSupervisor = requesterRole === 'doctor' || requesterRole === 'chief-doctor';
     
     const todayStr = new Date().toISOString().split("T")[0];
+
+    // Upcoming = today onwards and not terminal states.
+    // Use a deny-list so newly introduced intermediate statuses don't disappear from PG/UG views.
+    const excludedStatuses = ['cancelled', 'completed', 'closed'];
     
     if (isSupervisor) {
       // 🔥 FIX: Doctors see appointments for patients assigned to their PG/UG students
@@ -703,7 +707,7 @@ router.get("/pg-appointments", auth, requireRole(["doctor", "chief-doctor", "pg"
       // Fetch appointments for these patients
       const appointments = await Appointment.find({
         patientId: { $in: assignedPatientIds },
-        status: { $in: ["assigned", "in_progress", "rescheduled"] },
+        status: { $nin: excludedStatuses },
         appointmentDate: { $gte: todayStr },
       }).sort({ appointmentDate: 1, appointmentTime: 1 });
 
@@ -749,7 +753,7 @@ router.get("/pg-appointments", auth, requireRole(["doctor", "chief-doctor", "pg"
           { assigned_pg_ug_id: pgIdentity },
           { pgDoctorId: pgIdentity },
         ],
-        status: { $in: ["assigned", "in_progress", "rescheduled"] },
+        status: { $nin: excludedStatuses },
         appointmentDate: { $gte: todayStr },
       }).sort({ appointmentDate: 1, appointmentTime: 1 });
 

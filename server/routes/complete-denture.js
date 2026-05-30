@@ -7,6 +7,7 @@ import { User } from '../models/User.js';
 import auth from '../middleware/auth.js';
 import requireRole from '../middleware/role.js';
 import { hasChiefDepartmentAccess, chiefDepartmentAccessDenied } from '../utils/chiefDepartmentAccess.js';
+import { advanceGeneralCaseReferralIfEligible } from '../utils/referralFlow.js';
 import multer from 'multer';
 
 dotenv.config();
@@ -76,7 +77,7 @@ const parseArrayField = (field) => {
 // ============================================
 // SAVE CASE
 // ============================================
-router.post('/save', auth, requireRole(['doctor','chief','pg']), upload.single('digitalSignature'), async (req, res) => {
+router.post('/save', auth, requireRole(['doctor','chief','pg','ug']), upload.single('digitalSignature'), async (req, res) => {
   try {
     const arrayFields = [
       'medicalHistory', 'mentalAttitude', 'habits', 'toothLossReason',
@@ -124,6 +125,14 @@ router.post('/save', auth, requireRole(['doctor','chief','pg']), upload.single('
     });
 
     await completeDentureCase.save();
+
+    if (req.user?.role === 'pg' || req.user?.role === 'ug') {
+      await advanceGeneralCaseReferralIfEligible({
+        patientId,
+        completedDepartmentLabel: 'Prosthodontics',
+        completedBy: req.user,
+      });
+    }
 
     res.status(201).json({ 
       success: true, 

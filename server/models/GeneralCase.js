@@ -50,6 +50,33 @@ const GeneralCaseSchema = new mongoose.Schema({
   description: String,
   generalDescription: String,
   selectedDepartments: [String],
+  referralCurrentIndex: {
+    type: Number,
+    default: 0,
+    min: 0,
+  },
+  referralHistory: [
+    {
+      department: {
+        type: String,
+        default: '',
+      },
+      completedAt: Date,
+      completedById: {
+        type: String,
+        default: '',
+      },
+      completedByName: {
+        type: String,
+        default: '',
+      },
+      completedByRole: {
+        type: String,
+        default: '',
+      },
+    },
+  ],
+  referralCompletedAt: Date,
   treatmentPlan: String,
   xrayImage: {
     type: String,

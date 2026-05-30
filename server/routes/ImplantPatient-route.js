@@ -7,6 +7,7 @@ import multer from 'multer';
 import nodemailer from 'nodemailer';
 import dotenv from 'dotenv';
 import { User } from "../models/User.js";
+import { advanceGeneralCaseReferralIfEligible } from '../utils/referralFlow.js';
 
 const router = express.Router();
 
@@ -68,7 +69,7 @@ const fileToDataUri = (file) => {
 router.post(
   '/save',
   auth,
-  requireRole(['doctor','chief','chief-doctor','pg']),
+  requireRole(['doctor','chief','chief-doctor','pg','ug']),
   upload.fields([
     { name: 'digitalSignature', maxCount: 1 },
     { name: 'mouthOpening', maxCount: 1 }
@@ -111,6 +112,14 @@ router.post(
 
       const newCase = new ImplantPatientCase(transformedData);
       await newCase.save();
+
+      if (req.user?.role === 'pg' || req.user?.role === 'ug') {
+        await advanceGeneralCaseReferralIfEligible({
+          patientId: transformedData.patientId,
+          completedDepartmentLabel: 'Prosthodontics',
+          completedBy: req.user,
+        });
+      }
 
       console.log('[ImplantPatient SAVE] Case saved successfully:', {
         _id: newCase._id,
@@ -248,7 +257,7 @@ router.get("/search/:query", async (req, res) => {
 /* =========================
    CREATE IMPLANT CASE
 ========================= */
-router.post("/implant", async (req, res) => {
+router.post("/implant", auth, requireRole(['doctor','chief','chief-doctor','pg','ug']), async (req, res) => {
   try {
     const data = req.body;
     
@@ -257,6 +266,14 @@ router.post("/implant", async (req, res) => {
     
     const newCase = new ImplantPatientCase(transformedData);
     await newCase.save();
+
+    if (req.user?.role === 'pg' || req.user?.role === 'ug') {
+      await advanceGeneralCaseReferralIfEligible({
+        patientId: transformedData.patientId,
+        completedDepartmentLabel: 'Prosthodontics',
+        completedBy: req.user,
+      });
+    }
 
     res.status(201).json({
       success: true,
@@ -277,7 +294,7 @@ router.post("/implant", async (req, res) => {
 /* =========================
    GET ALL IMPLANT CASES
 ========================= */
-router.get("/implant", async (req, res) => {
+router.get("/implant", auth, requireRole(['doctor','chief','chief-doctor','pg','ug']), async (req, res) => {
   try {
     const { status, patientName, sortBy = 'createdAt', sortOrder = 'desc' } = req.query;
     

@@ -284,15 +284,15 @@ router.get('/:caseId', auth, async (req, res) => {
 });
 
 // PUT /api/casesheets/:caseId
-// Allows a PG to update a case sheet ONLY when it is marked as redo/resend.
-// The case must belong to that PG (stored in doctorId), and after update the approval is reset.
-router.put('/:caseId', auth, requireRole(['pg']), async (req, res) => {
+// Allows a PG/UG to update a case sheet ONLY when it is marked as redo/resend.
+// The case must belong to that PG/UG (stored in doctorId), and after update the approval is reset.
+router.put('/:caseId', auth, requireRole(['pg', 'ug']), async (req, res) => {
   try {
     const { caseId } = req.params;
     const pgIdentity = String(req.user?.Identity || '').trim();
 
     if (!pgIdentity) {
-      return res.status(400).json({ success: false, message: 'PG identity missing' });
+      return res.status(400).json({ success: false, message: 'PG/UG identity missing' });
     }
 
     if (!mongoose.Types.ObjectId.isValid(caseId)) {
@@ -355,7 +355,7 @@ router.put('/:caseId', auth, requireRole(['pg']), async (req, res) => {
       department: found.departmentKey,
     });
   } catch (error) {
-    console.error('Error updating casesheet (PG redo edit):', error);
+    console.error('Error updating casesheet (PG/UG redo edit):', error);
     return res.status(500).json({ success: false, message: 'Server error' });
   }
 });
