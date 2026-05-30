@@ -18,7 +18,7 @@ const router = Router()
 
 const normalizeDepartment = (value) => String(value || '').trim().toLowerCase().replace(/[_\s]+/g, '');
 const normalizeRole = (value) => String(value || '').trim().toLowerCase().replace(/[_\s]+/g, '-');
-const GENERAL_DOCTOR_DEPARTMENT_KEYS = new Set(['general', 'generaldentistry']);
+const GENERAL_DOCTOR_DEPARTMENT_KEYS = new Set(['general', 'generaldentistry', 'oral', 'oralmedicine', 'oralmedicineandradiology', 'oralmedicineradiology']);
 
 /* ✅ CONFIRM ROUTER LOAD */
 console.log("✅ Appointment router loaded successfully");
@@ -167,7 +167,7 @@ const generateBookingId = () => {
 
 // Appointment slot rules
 // Default departments: 30-minute slots from 9:00 AM to 2:00 PM
-// Oral Medicine: 15-minute slots from 9:00 AM to 2:00 PM (skips lunch 1:00–2:00 and 11:00 break)
+// General Department: 15-minute slots from 9:00 AM to 2:00 PM (skips lunch 1:00–2:00 and 11:00 break)
 const ALLOWED_APPOINTMENT_TIMES = new Set([
   // 30-minute slots (all departments)
   "9:00 AM",
@@ -178,7 +178,7 @@ const ALLOWED_APPOINTMENT_TIMES = new Set([
   "12:00 PM",
   "12:30 PM",
   "2:00 PM",
-  // 15-minute slots (Oral Medicine)
+  // 15-minute slots (General Department - primary screening)
   "9:15 AM",
   "9:45 AM",
   "10:15 AM",

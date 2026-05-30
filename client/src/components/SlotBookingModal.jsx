@@ -55,9 +55,10 @@ export default function SlotBookingModal({ isOpen, onClose, onSlotBooked, patien
       ''
     ).trim().toLowerCase().replace(/[\s_]+/g, '');
 
-    const isOralDept = rawDept.includes('oral');
+    // General department uses 15-minute slots
+    const isGeneralDept = rawDept === 'general' || rawDept === 'generaldentistry' || rawDept.includes('oral');
 
-    if (isOralDept) {
+    if (isGeneralDept) {
       const slotStartsInMinutes = [];
       const lunchStart = 13 * 60;
       const lunchEnd = 14 * 60;

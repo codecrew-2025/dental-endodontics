@@ -18,15 +18,16 @@ const doctorDepartmentCaseApiPrefixes = {
   implantpatient: ['/api/implantpatient'],
   partial: ['/api/partial'],
   partialdenture: ['/api/partial'],
-  // Oral department — all possible stored variants
+  // Oral Medicine & Radiology department acts as General Department for primary screening
+  // All general/oral variants map to the same /api/oral route
   oral: ['/api/oral'],
+  general: ['/api/oral'],
+  generaldentistry: ['/api/oral'],
   oralandmaxillofacial: ['/api/oral'],
   oralandmaxillofacialsurgery: ['/api/oral'],
   oralmedicine: ['/api/oral'],
   oralmedicineandradiology: ['/api/oral'],
-  oralmedicineradiology: ['/api/oral'],
-  general: [],
-  generaldentistry: []
+  oralmedicineradiology: ['/api/oral']
 };
 
 const allRestrictedDoctorCasePrefixes = Array.from(

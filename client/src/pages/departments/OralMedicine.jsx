@@ -1,10 +1,17 @@
-﻿import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { API_BASE_URL } from '../../config/api';
 import { saveCaseDraft, loadCaseDraft, clearCaseDraft } from '../../utils/caseDraft';
 import { readStoredGeneralCaseXray } from '../../utils/generalCaseXray';
 import { getCurrentPatientId, getSharedXrayImage } from '../../utils/sharedXray';
+import {
+  detectDentalIssues,
+  recommendInvestigations,
+  recommendReferralDepartment,
+  classifyUrgency,
+  generatePatientEducation,
+} from '../../utils/generalDoctorAlgorithm';
 import './OralMedicine.css';
 
 const DRAFT_ROUTE_KEY = '/oral-medicine'; 
@@ -81,6 +88,14 @@ const OralMedicine = () => {
   const [messageBox, setMessageBox] = useState({ show: false, title: '', message: '' });
   const [showConsentPrompt, setShowConsentPrompt] = useState(false);
   const [consentRedirectTarget, setConsentRedirectTarget] = useState('');
+  
+  // General Doctor Algorithm recommendations
+  const [clinicalIssues, setClinicalIssues] = useState([]);
+  const [recommendedInvestigations, setRecommendedInvestigations] = useState([]);
+  const [recommendedDepartments, setRecommendedDepartments] = useState([]);
+  const [urgencyLevel, setUrgencyLevel] = useState({ level: 'ROUTINE', recommendation: '' });
+  const [patientEducation, setPatientEducation] = useState('');
+  
   const draftTimerRef = useRef(null);
 
   const patientId = localStorage.getItem('CurrentpatientId') || '';
@@ -261,7 +276,7 @@ const OralMedicine = () => {
       || localStorage.getItem('doctorDepartment')
       || localStorage.getItem('ugDepartment')
       || localStorage.getItem('pgDepartment')
-      || 'Oral Medicine and Radiology';
+      || 'General';
     setForm(prev => prev.referredDepartment ? prev : { ...prev, referredDepartment: dept });
   }, []); // eslint-disable-line
 
@@ -282,6 +297,41 @@ const OralMedicine = () => {
     setForm(prev => ({ ...prev, [field]: value }));
     setErrors(prev => ({ ...prev, [field]: '' }));
   }, []);
+
+  // General Doctor Algorithm: Calculate clinical recommendations
+  useEffect(() => {
+    // Debounce algorithm execution to avoid excessive calculations
+    const timer = setTimeout(() => {
+      const issues = detectDentalIssues(form);
+      const investigations = recommendInvestigations(form, issues);
+      const departments = recommendReferralDepartment(issues, parseInt(form.age, 10), form.provisionalDiagnosis);
+      const urgency = classifyUrgency(issues, form);
+      const education = generatePatientEducation(issues);
+
+      setClinicalIssues(issues);
+      setRecommendedInvestigations(investigations);
+      setRecommendedDepartments(departments);
+      setUrgencyLevel(urgency);
+      setPatientEducation(education);
+
+      // Auto-populate referral if not manually set and department is recommended
+      if (departments.length > 0 && !form.referredDepartment) {
+        setForm(prev => ({ ...prev, referredDepartment: departments[0] }));
+      }
+    }, 800);
+
+    return () => clearTimeout(timer);
+  }, [
+    form.age,
+    form.dentalCaries,
+    form.missingTeeth,
+    form.gingival,
+    form.lesionInspection,
+    form.provisionalDiagnosis,
+    form.occlusion,
+    form.tmjInspection,
+    form.calculusAndStains,
+  ]);
 
   const showToast = (msg, type = 'success') => {
     setToast({ msg, type });
@@ -377,7 +427,7 @@ const OralMedicine = () => {
         await clearCaseDraft({ patientId, routeKey: DRAFT_ROUTE_KEY });
         const pName = form.patientName || patientName || 'Patient';
         const referral = form.referredDepartment ? `\n\nReferred to: ${form.referredDepartment}` : '';
-        showMessageBox('✅ Case Sheet Submitted', `Oral Medicine & Radiology has completed the case sheet for ${pName}.\n\nTreatment plan and diagnosis have been recorded successfully.${referral}`);
+        showMessageBox('✅ General Department Case Sheet Submitted', `Case sheet for ${pName} has been completed by General Department.\n\nInitial diagnosis and referral recommendations have been recorded successfully.${referral}`);
         const role = user?.role || localStorage.getItem('role') || '';
         const dashRoute = role.includes('ug') ? '/ug-dashboard'
           : role.includes('pg') ? '/pg-dashboard'
@@ -597,7 +647,6 @@ const OralMedicine = () => {
         <option value="Prosthodontics">Prosthodontics</option>
         <option value="Oral & Maxillofacial Surgery">Oral &amp; Maxillofacial Surgery</option>
         <option value="Conservative Dentistry">Conservative Dentistry</option>
-        <option value="Oral Medicine & Radiology">Oral Medicine &amp; Radiology</option>
         <option value="Public Health Dentistry">Public Health Dentistry</option>
         <option value="Other">Other</option>
       </select>
@@ -668,18 +717,12 @@ const OralMedicine = () => {
 
       {/* Allergy banner — pushed down if critical banner is showing */}
       {showAllergy && (
-        <div style={{
-          position: 'fixed', top: showCritical && criticalCondition ? 44 : 0, left: 0, right: 0, width: '100vw', zIndex: 99999,
-          background: '#fff3cd', borderBottom: '2px solid #f59e0b',
-          display: 'flex', alignItems: 'center', gap: 10, padding: '10px 24px',
-          boxSizing: 'border-box', boxShadow: '0 3px 10px rgba(0,0,0,0.18)',
-        }}>
-          <span style={{ fontSize: 18, color: '#d97706', flexShrink: 0 }}>⚠️</span>
-          <span style={{ flex: 1, fontWeight: 700, fontSize: '0.9rem', color: '#92400e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {formatAllergyTicker(allergyMessage)}
-          </span>
-          <button onClick={() => setShowAllergy(false)} aria-label="Dismiss"
-            style={{ marginLeft: 'auto', background: 'transparent', border: 'none', fontSize: 20, color: '#92400e', cursor: 'pointer', flexShrink: 0, lineHeight: 1, padding: '0 4px' }}>×</button>
+        <div className="allergy-alert" id="patientAllergyAlert" style={{ top: showCritical && criticalCondition ? 44 : 0 }}>
+          <span className="alert-icon">⚠️</span>
+          <div className="allergy-flow-window">
+            <span id="allergyMessage">{formatAllergyTicker(allergyMessage)}</span>
+          </div>
+          <button onClick={() => setShowAllergy(false)} className="close-btn" aria-label="Dismiss" style={{ zIndex: 100000 }}>×</button>
         </div>
       )}
 

@@ -6,6 +6,8 @@ import { User } from '../models/User.js';
 const router = express.Router();
 
 const departmentConfig = [
+  // General Department (Primary Screening)
+  { key: 'general', label: 'General', modelPath: '../models/Oral-model.js' },
   { key: 'pedodontics', label: 'Pedodontics', modelPath: '../models/PedodonticsCase.js' },
   { key: 'completeDenture', label: 'Complete Denture', modelPath: '../models/CompleteDentureCase.js' },
   { key: 'fpd', label: 'Fixed Partial Denture', modelPath: '../models/Fpd-model.js' },
@@ -18,6 +20,13 @@ const normalizeRole = (value) => String(value || '').trim().toLowerCase().replac
 const normalizeDepartment = (value) => String(value || '').trim().toLowerCase().replace(/[_\s]+/g, '');
 
 const chiefDepartmentScopeMap = {
+  // General Department (Primary Screening)
+  general: ['general'],
+  generaldentistry: ['general'],
+  oral: ['general'],
+  oralmedicine: ['general'],
+  oralmedicineandradiology: ['general'],
+  // Specialty Departments
   pedodontics: ['pedodontics'],
   prosthodontics: ['completeDenture', 'fpd', 'implant', 'implantPatient', 'partial'],
   prothodontics: ['completeDenture', 'fpd', 'implant', 'implantPatient', 'partial'],
@@ -25,6 +34,7 @@ const chiefDepartmentScopeMap = {
   completedenture: ['completeDenture'],
   fixedpartialdenture: ['fpd'],
   fpd: ['fpd'],
+  general: 'general',
   implant: ['implant'],
   implantology: ['implant', 'implantPatient'],
   implantpatient: ['implantPatient'],

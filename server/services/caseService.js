@@ -36,8 +36,8 @@ const saveGeneralCase = async ({ Model, payload, user }) => {
   const requesterRole = String(user?.role || '').trim().toLowerCase().replace(/[\s_]+/g, '-');
   const requesterDepartment = String(user?.department || '').trim().toLowerCase().replace(/[\s_]+/g, '');
 
-  if (requesterRole === 'doctor' && !['general', 'generaldentistry'].includes(requesterDepartment)) {
-    throw new ServiceError(403, { success: false, message: 'Only general doctors can create referral case sheets.' });
+  if (requesterRole === 'doctor' && !['general', 'generaldentistry', 'oral', 'oralmedicine', 'oralmedicineandradiology', 'oralmedicineradiology'].includes(requesterDepartment)) {
+    throw new ServiceError(403, { success: false, message: 'Only general/oral doctors can create referral case sheets.' });
   }
 
   if (!patientId || !patientName || !doctorId || !doctorName) {

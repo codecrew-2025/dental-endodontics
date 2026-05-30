@@ -537,7 +537,7 @@ const DoctorDashboard = () => {
   const doctorDepartmentLabel = String(user?.department || localStorage.getItem('doctorDepartment') || '').trim();
   const currentRoleKey = String(user?.role || localStorage.getItem('role') || '').trim().toLowerCase();
   const isSpecialistDoctor = Boolean(
-    doctorDepartmentKey && doctorDepartmentKey !== 'general' && doctorDepartmentKey !== 'generaldentistry'
+    doctorDepartmentKey && doctorDepartmentKey !== 'general' && doctorDepartmentKey !== 'generaldentistry' && !doctorDepartmentKey.includes('oral')
   );
   const canUseReferralQueue = currentRoleKey === 'doctor' && isSpecialistDoctor;
 

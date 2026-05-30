@@ -32,12 +32,13 @@ const doctorDepartmentCaseScope = {
   partialdenture: ['partial_denture'],
   partial: ['partial_denture'],
   oral: ['oral'],
+  general: ['oral'],
+  generaldentistry: ['oral'],
   oralandmaxillofacial: ['oral'],
   oralandmaxillofacialsurgery: ['oral'],
   oralmedicine: ['oral'],
   oralmedicineandradiology: ['oral'],
-  oralmedicineradiology: ['oral'],
-  general: []
+  oralmedicineradiology: ['oral']
 };
 
 const canDoctorAccessDepartment = (user, caseDepartmentKey) => {
@@ -152,8 +153,8 @@ router.get('/pg/history', auth, requireRole(['pg', 'ug']), async (req, res) => {
       { model: Implant, department: 'Implant', departmentKey: 'implant' },
       { model: ImplantPatientCase, department: 'Implant Patient Surgery', departmentKey: 'implant_patient' },
       { model: PartialDentureCase, department: 'Partial Denture', departmentKey: 'partial_denture' },
-      { model: OralCase, department: 'Oral Medicine and Radiology', departmentKey: 'oral' },
-      { model: GeneralCase, department: 'General', departmentKey: 'general' },
+      // General Department (primary screening via Oral Medicine & Radiology form)
+      { model: OralCase, department: 'General', departmentKey: 'oral' },
     ];
 
     const results = await Promise.all(
