@@ -1687,7 +1687,7 @@ const ChiefDoctorDashboard = () => {
                               const cid = String(c?._id || '').trim();
                               const pname = String(c?.patientName || '').trim();
                               const dept = String(c?.department || '').trim();
-                              const url = `/general-case-view?patientId=${encodeURIComponent(pid)}&patientName=${encodeURIComponent(pname)}&caseId=${encodeURIComponent(cid)}&department=${encodeURIComponent(dept)}`;
+                              const url = `/case-sheet-view/${encodeURIComponent(cid)}`;
                               window.open(url, '_blank');
                             }}
                             type="button"

@@ -39,8 +39,7 @@ import WeeklyReportPage from './pages/WeeklyReportPage';
 import MonthlyReportPage from './pages/MonthlyReportPage';
 import YearlyReportPage from './pages/YearlyReportPage';
 import ChiefDoctorReportsPage from './pages/ChiefDoctorReportsPage';
-import GeneralCaseSheet from './pages/Generalcasesheet';
-import GeneralCaseSheetView from './pages/GeneralCaseSheetView';
+
 import DoctorProfile from './pages/Doctorprofilepage';
 import PGDashboard from './pages/PGDashboard';
 import UGDashboard from './pages/UGDashboard';
@@ -255,23 +254,7 @@ const AppRoutes = () => {
             </ProtectedRoute>
           }
         />
-        <Route
-          path="/general-case-sheet"
-          element={
-            <ProtectedRoute allowedRoles={['doctor', 'chief', 'chief-doctor', 'pg', 'ug']}>
-              <GeneralCaseSheet />
-            </ProtectedRoute>
-          }
-        />
 
-        <Route
-          path="/general-case-view"
-          element={
-            <ProtectedRoute allowedRoles={['doctor', 'chief', 'chief-doctor', 'pg', 'ug']}>
-              <GeneralCaseSheetView />
-            </ProtectedRoute>
-          }
-        />
         <Route
           path="/casePortal"
           element={

@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { API_BASE_URL } from '../../config/api';
 import { saveCaseDraft, loadCaseDraft, clearCaseDraft } from '../../utils/caseDraft';
 import { readStoredGeneralCaseXray } from '../../utils/generalCaseXray';
-import { getCurrentPatientId, getSharedXrayImage } from '../../utils/sharedXray';
+import { getCurrentPatientId, getSharedXrayImage, saveSharedXrayImage } from '../../utils/sharedXray';
 import {
   detectDentalIssues,
   recommendInvestigations,
@@ -451,15 +451,48 @@ const OralMedicine = () => {
     <textarea className={`omr-ta${large ? ' omr-ta-lg' : ''}`} rows={rows} value={form[field] || ''} onChange={e => set(field, e.target.value)} />
   );
 
+  const handleXrayUpload = (file) => {
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      showToast('File size exceeds 5MB limit.', 'error');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const dataUrl = e.target.result;
+      setXrayPreview(dataUrl);
+      const pid = getCurrentPatientId() || patientId;
+      if (pid) {
+        saveSharedXrayImage(pid, {
+          dataUrl,
+          name: file.name,
+          type: file.type,
+          size: file.size
+        });
+        showToast('Oral X-ray uploaded and saved successfully!', 'success');
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
   /* ── PAGE 0 — Patient Info & History (PDF Page 1) ── */
   const renderPage0 = () => (
     <div className="omr-page-content">
-      {xrayPreview && (
-        <div className="xray-preview-container" style={{ marginBottom: 16 }}>
-          <label className="omr-lbl">X-ray Image:</label>
-          <img src={xrayPreview} alt="X-ray preview" className="xray-preview" />
-        </div>
-      )}
+      <div style={{ background: 'rgba(255,255,255,0.05)', padding: '16px', borderRadius: '8px', marginBottom: '16px', border: '1px solid rgba(165,180,252,0.3)' }}>
+        <h3 style={{ margin: '0 0 12px', fontSize: '1rem', color: '#a5b4fc' }}>Upload Oral X-ray</h3>
+        <input 
+          type="file" 
+          accept="image/*" 
+          onChange={e => handleXrayUpload(e.target.files[0])} 
+          style={{ marginBottom: xrayPreview ? '12px' : 0, display: 'block', color: '#fff' }} 
+        />
+        {xrayPreview && (
+          <div className="xray-preview-container">
+            <label className="omr-lbl" style={{ marginBottom: '8px', display: 'block' }}>Oral X-ray Preview:</label>
+            <img src={xrayPreview} alt="Oral X-ray preview" className="xray-preview" style={{ maxWidth: '100%', maxHeight: '300px', borderRadius: '6px' }} />
+          </div>
+        )}
+      </div>
       <h2 className="omr-sheet-title" style={{ marginTop: 8 }}>ORAL MEDICINE AND RADIOLOGY</h2>
       <p className="omr-section-title">CHIEF COMPLAINT:</p>
       {ta('chiefComplaint', 4, true)}
@@ -574,6 +607,61 @@ const OralMedicine = () => {
   const renderPage7 = () => (
     <div className="omr-page-content">
       <h2 className="omr-sheet-title">ORAL MEDICINE AND RADIOLOGY</h2>
+
+      {/* --- AI Recommendations Section --- */}
+      <div style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(165,180,252,0.4)', borderRadius: '8px', padding: '16px', marginBottom: '24px' }}>
+        <h3 style={{ margin: '0 0 12px', color: '#a5b4fc', fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span>🤖</span> AI Clinical Recommendations
+        </h3>
+        
+        {clinicalIssues.length > 0 ? (
+          <div style={{ display: 'grid', gap: '12px' }}>
+            <div>
+              <strong style={{ color: '#fff', fontSize: '0.9rem' }}>Detected Issues:</strong>
+              <ul style={{ margin: '4px 0 0', paddingLeft: '20px', color: '#c7d2fe', fontSize: '0.85rem' }}>
+                {clinicalIssues.map((issue, idx) => <li key={idx}>{issue}</li>)}
+              </ul>
+            </div>
+            
+            {recommendedInvestigations.length > 0 && (
+              <div>
+                <strong style={{ color: '#fff', fontSize: '0.9rem' }}>Suggested Investigations:</strong>
+                <ul style={{ margin: '4px 0 0', paddingLeft: '20px', color: '#c7d2fe', fontSize: '0.85rem' }}>
+                  {recommendedInvestigations.map((inv, idx) => <li key={idx}>{inv}</li>)}
+                </ul>
+              </div>
+            )}
+
+            {recommendedDepartments.length > 0 && (
+              <div>
+                <strong style={{ color: '#fff', fontSize: '0.9rem' }}>Suggested Referrals:</strong>
+                <div style={{ margin: '4px 0 0', color: '#c7d2fe', fontSize: '0.85rem' }}>
+                  {recommendedDepartments.join(', ')}
+                </div>
+              </div>
+            )}
+
+            <div>
+              <strong style={{ color: '#fff', fontSize: '0.9rem' }}>Urgency Level:</strong>
+              <div style={{ margin: '4px 0 0', color: urgencyLevel.level === 'EMERGENCY' ? '#fca5a5' : urgencyLevel.level === 'URGENT' ? '#fcd34d' : '#86efac', fontSize: '0.85rem', fontWeight: 'bold' }}>
+                {urgencyLevel.level} - {urgencyLevel.recommendation}
+              </div>
+            </div>
+
+            {patientEducation && (
+              <div>
+                <strong style={{ color: '#fff', fontSize: '0.9rem' }}>Patient Education:</strong>
+                <p style={{ margin: '4px 0 0', color: '#c7d2fe', fontSize: '0.85rem', whiteSpace: 'pre-line' }}>
+                  {patientEducation}
+                </p>
+              </div>
+            )}
+          </div>
+        ) : (
+          <p style={{ margin: 0, color: '#9ca3af', fontSize: '0.85rem', fontStyle: 'italic' }}>Fill out examination fields to generate AI recommendations.</p>
+        )}
+      </div>
+      {/* --- End AI Recommendations Section --- */}
       <p className="omr-section-title">Provisional Diagnosis:</p>{ta('provisionalDiagnosis', 3)}
       <p className="omr-section-title">Differential Diagnosis:</p>{ta('differentialDiagnosis', 3)}
       <p className="omr-section-title">Investigation:</p>

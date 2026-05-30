@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import './casePortal.css';
-import { readStoredGeneralCaseXray } from '../utils/generalCaseXray';
 
 const CASE_CONSENT_NAV_STATE_KEY = 'caseSheetConsentApproved';
 
@@ -11,7 +10,6 @@ const CasePortal = () => {
   const [showProsthodontics, setShowProsthodontics] = useState(false);
   const [showOral, setShowOral] = useState(false);
   const [showPerio, setShowPerio] = useState(false);
-  const [generalXrayPreview, setGeneralXrayPreview] = useState('');
 
   // Auto-open specific department sections when coming from other flows (e.g., General Case Sheet)
   useEffect(() => {
@@ -45,11 +43,6 @@ const CasePortal = () => {
     }
   }, [location.pathname, location.search, location.state, navigate]);
 
-  useEffect(() => {
-    const patientId = localStorage.getItem('CurrentpatientId') || '';
-    const cachedXray = readStoredGeneralCaseXray(patientId);
-    setGeneralXrayPreview(cachedXray?.imageDataUrl || '');
-  }, []);
 
   const startCaseFlow = (targetPage) => {
     const navState = location.state || {};
@@ -69,12 +62,6 @@ const CasePortal = () => {
       <div className="container-portal">
         <div className="heading">Select Case Sheet</div>
 
-        {generalXrayPreview && (
-          <div className="portal-general-xray-reflection">
-            <h4>General Case X-ray (Auto-loaded)</h4>
-            <img src={generalXrayPreview} alt="General Case X-ray" />
-          </div>
-        )}
 
         <div className="button-group-portal" id="mainButtonGroup" style={{ display: showProsthodontics || showOral || showPerio ? 'none' : 'flex' }}>
           <button className="button-portal" onClick={() => setShowProsthodontics(true)}>Prosthodontics</button>
@@ -83,9 +70,8 @@ const CasePortal = () => {
 
           <button className="button-portal" onClick={() => setShowPerio(true)}>Periodontics</button>
           <button className="button-portal" onClick={() => startCaseFlow('/casePortal')}>Conservative Dentistry and Endodontics</button>
-          <button className="button-portal" onClick={() => setShowOral(true)}>Oral and Maxillofacial</button>
+          <button className="button-portal" onClick={() => setShowOral(true)}>General</button>
           <button className="button-portal" onClick={() => startCaseFlow('/casePortal')}>Orthoganthic Case History</button>
-          <button className="button-portal" onClick={() => startCaseFlow('/general-case-sheet')}>General</button>
         </div>
 
         {/* Prosthodontics sub-options */}
@@ -102,7 +88,7 @@ const CasePortal = () => {
         {/* Oral and Maxillofacial sub-options */}
         {showOral && (
           <div className="sub-options" id="oralSubOptions">
-            <button className="button-portal" onClick={() => startCaseFlow('/oral-medicine')}>Oral Medicine and Radiology</button>
+            <button className="button-portal" onClick={() => startCaseFlow('/oral-medicine')}>General Case Sheet</button>
             <button className="button-portal" onClick={() => startCaseFlow('/casePortal')}>Clef Lip</button>
             <button className="button-portal" onClick={() => startCaseFlow('/casePortal')}>Trauma</button>
             <button className="button-portal" onClick={() => startCaseFlow('/casePortal')}>Impaction</button>
