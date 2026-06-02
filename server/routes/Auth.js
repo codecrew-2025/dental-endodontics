@@ -1741,7 +1741,7 @@ router.patch('/doctor/assigned-pgs/cases/:caseId/approve', auth, requireRole(['d
     const { department, chiefApproval, approvedBy } = req.body;
     const normalizedDepartment = normalizeDepartmentName(req.user?.department);
 
-    if (normalizedDepartment === 'general' || normalizedDepartment === 'generaldentistry') {
+    if (normalizedDepartment === 'general' || normalizedDepartment === 'generaldentistry' || normalizedDepartment.includes('oral')) {
       return res.status(403).json({
         success: false,
         message: 'General doctors cannot use case-sheet approval controls.',

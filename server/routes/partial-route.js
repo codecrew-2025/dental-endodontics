@@ -7,6 +7,7 @@ import multer from 'multer';
 import nodemailer from 'nodemailer';
 import dotenv from 'dotenv';
 import { User } from '../models/User.js';
+import { advanceGeneralCaseReferralIfEligible } from '../utils/referralFlow.js';
 
 const router = express.Router();
 
@@ -52,7 +53,7 @@ const upload = multer({
 /* =========================
    SAVE PARTIAL CASE WITH AUTH
 ========================= */
-router.post('/save', auth, requireRole(['doctor','chief','chief-doctor','pg']), upload.single('digitalSignature'), async (req, res) => {
+router.post('/save', auth, requireRole(['doctor','chief','chief-doctor','pg','ug']), upload.single('digitalSignature'), async (req, res) => {
   try {
     const { patientId, patientName, doctorId, doctorName } = req.body;
 
@@ -83,6 +84,14 @@ router.post('/save', auth, requireRole(['doctor','chief','chief-doctor','pg']), 
       chiefApproval: ""
     });
     await newCase.save();
+
+    if (req.user?.role === 'pg' || req.user?.role === 'ug') {
+      await advanceGeneralCaseReferralIfEligible({
+        patientId,
+        completedDepartmentLabel: 'Prosthodontics',
+        completedBy: req.user,
+      });
+    }
 
     console.log('[Partial SAVE] Case saved successfully:', {
       _id: newCase._id,

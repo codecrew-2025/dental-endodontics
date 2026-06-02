@@ -9,6 +9,7 @@ import { hasChiefDepartmentAccess, chiefDepartmentAccessDenied } from '../utils/
 import nodemailer from 'nodemailer';
 import dotenv from 'dotenv';
 import { User } from '../models/User.js';
+import { advanceGeneralCaseReferralIfEligible } from '../utils/referralFlow.js';
 
 dotenv.config();
 
@@ -130,7 +131,7 @@ router.get('/get/:id', authenticate, async (req, res) => {
 // @route   POST /api/fpd
 // @desc    Create a new FPD case sheet
 // @access  Private
-router.post('/', authenticate, async (req, res) => {
+router.post('/', authenticate, requireRole(['doctor','chief','chief-doctor','pg','ug']), async (req, res) => {
   try {
     const { patientId, patientName, doctorId, doctorName } = req.body;
 
@@ -152,6 +153,14 @@ router.post('/', authenticate, async (req, res) => {
 
     const fpd = new Fpd(fpdData);
     await fpd.save();
+
+    if (req.user?.role === 'pg' || req.user?.role === 'ug') {
+      await advanceGeneralCaseReferralIfEligible({
+        patientId,
+        completedDepartmentLabel: 'Prosthodontics',
+        completedBy: req.user,
+      });
+    }
 
     console.log('FPD case saved successfully:', fpd._id);
 

@@ -1,4 +1,4 @@
-﻿/* ── OralMedicine.css — matches Pedodontics / Complete Denture blue theme ── */
+/* ── OralMedicine.css — matches Pedodontics / Complete Denture blue theme ── */
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
 
@@ -89,13 +89,18 @@
 }
 
 .allergy-alert #allergyMessage {
-  display: block;
+  display: inline-block;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  padding-right: 2rem;
   color: #92400e;
   font-weight: 700;
   font-size: 0.9rem;
+  animation: allergyTextFlow 10s linear infinite;
+}
+
+@keyframes allergyTextFlow {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100vw); }
 }
 
 .allergy-alert .close-btn {

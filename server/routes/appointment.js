@@ -18,7 +18,7 @@ const router = Router()
 
 const normalizeDepartment = (value) => String(value || '').trim().toLowerCase().replace(/[_\s]+/g, '');
 const normalizeRole = (value) => String(value || '').trim().toLowerCase().replace(/[_\s]+/g, '-');
-const GENERAL_DOCTOR_DEPARTMENT_KEYS = new Set(['general', 'generaldentistry']);
+const GENERAL_DOCTOR_DEPARTMENT_KEYS = new Set(['general', 'generaldentistry', 'oral', 'oralmedicine', 'oralmedicineandradiology', 'oralmedicineradiology']);
 
 /* ✅ CONFIRM ROUTER LOAD */
 console.log("✅ Appointment router loaded successfully");
@@ -167,7 +167,7 @@ const generateBookingId = () => {
 
 // Appointment slot rules
 // Default departments: 30-minute slots from 9:00 AM to 2:00 PM
-// Oral Medicine: 15-minute slots from 9:00 AM to 2:00 PM (skips lunch 1:00–2:00 and 11:00 break)
+// General Department: 15-minute slots from 9:00 AM to 2:00 PM (skips lunch 1:00–2:00 and 11:00 break)
 const ALLOWED_APPOINTMENT_TIMES = new Set([
   // 30-minute slots (all departments)
   "9:00 AM",
@@ -178,7 +178,7 @@ const ALLOWED_APPOINTMENT_TIMES = new Set([
   "12:00 PM",
   "12:30 PM",
   "2:00 PM",
-  // 15-minute slots (Oral Medicine)
+  // 15-minute slots (General Department - primary screening)
   "9:15 AM",
   "9:45 AM",
   "10:15 AM",
@@ -664,6 +664,10 @@ router.get("/pg-appointments", auth, requireRole(["doctor", "chief-doctor", "pg"
     const isSupervisor = requesterRole === 'doctor' || requesterRole === 'chief-doctor';
     
     const todayStr = new Date().toISOString().split("T")[0];
+
+    // Upcoming = today onwards and not terminal states.
+    // Use a deny-list so newly introduced intermediate statuses don't disappear from PG/UG views.
+    const excludedStatuses = ['cancelled', 'completed', 'closed'];
     
     if (isSupervisor) {
       // 🔥 FIX: Doctors see appointments for patients assigned to their PG/UG students
@@ -703,7 +707,7 @@ router.get("/pg-appointments", auth, requireRole(["doctor", "chief-doctor", "pg"
       // Fetch appointments for these patients
       const appointments = await Appointment.find({
         patientId: { $in: assignedPatientIds },
-        status: { $in: ["assigned", "in_progress", "rescheduled"] },
+        status: { $nin: excludedStatuses },
         appointmentDate: { $gte: todayStr },
       }).sort({ appointmentDate: 1, appointmentTime: 1 });
 
@@ -749,7 +753,7 @@ router.get("/pg-appointments", auth, requireRole(["doctor", "chief-doctor", "pg"
           { assigned_pg_ug_id: pgIdentity },
           { pgDoctorId: pgIdentity },
         ],
-        status: { $in: ["assigned", "in_progress", "rescheduled"] },
+        status: { $nin: excludedStatuses },
         appointmentDate: { $gte: todayStr },
       }).sort({ appointmentDate: 1, appointmentTime: 1 });
 

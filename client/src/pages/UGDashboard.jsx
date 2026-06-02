@@ -36,7 +36,7 @@ const UGDashboard = () => {
     if (key === 'periodontics') return '/casePortal?dept=periodontics';
     if (key.includes('oral') || key.includes('maxillofacial')) return '/oral-medicine';
     if (key.includes('conservative') || key.includes('endodontic')) return '/conservative-dentistry';
-    if (key === 'general' || key === 'generaldentistry') return '/general-case-sheet';
+    if (key === 'general' || key === 'generaldentistry') return '/oral-medicine';
     return '/casePortal?dept=prosthodontics';
   };
 
@@ -50,10 +50,14 @@ const UGDashboard = () => {
   };
 
   const DEPT_LABEL_MAP = {
-    oral: 'Oral Medicine and Radiology',
-    oralmedicine: 'Oral Medicine and Radiology',
-    oralmedicineandradiology: 'Oral Medicine and Radiology',
-    oralmedicineradiology: 'Oral Medicine and Radiology',
+    // General Department (Primary Screening - uses Oral Medicine & Radiology form)
+    oral: 'General',
+    general: 'General',
+    generaldentistry: 'General',
+    oralmedicine: 'General',
+    oralmedicineandradiology: 'General',
+    oralmedicineradiology: 'General',
+    // Specialty Departments
     oralandmaxillofacial: 'Oral and Maxillofacial Surgery',
     oralandmaxillofacialsurgery: 'Oral and Maxillofacial Surgery',
     pedodontics: 'Pedodontics',
@@ -64,8 +68,6 @@ const UGDashboard = () => {
     endodontics: 'Conservative Dentistry and Endodontics',
     implant: 'Implantology',
     implantology: 'Implantology',
-    general: 'General Dentistry',
-    generaldentistry: 'General Dentistry',
   };
 
   const formatDepartmentLabel = (value) => {
@@ -2312,6 +2314,7 @@ const UGDashboard = () => {
                   </div>
                 )}
 
+<<<<<<< HEAD
                 {/* General Case Sheet Preview — not shown for PHD doctors */}
                 {showUserIdDisplay && !isPublicHealthDentistry && (
                   <div className="general-case-preview-section" style={{ margin: '16px 0', padding: '12px 16px', background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0' }}>
@@ -2362,6 +2365,9 @@ const UGDashboard = () => {
                     </div>
                   </div>
                 )}
+=======
+
+>>>>>>> b9290f39ded440f4a943168e9e7c930ce26f6408
 
                 {/* Form Section */}
                 {showForm && (

@@ -7,6 +7,7 @@ import { User } from '../models/User.js';
 import auth from '../middleware/auth.js';
 import requireRole from '../middleware/role.js';
 import { hasChiefDepartmentAccess, chiefDepartmentAccessDenied } from '../utils/chiefDepartmentAccess.js';
+import { advanceGeneralCaseReferralIfEligible } from '../utils/referralFlow.js';
 const isGeneralDepartment = (dept) => {
   const d = String(dept || '').toLowerCase();
   return d === 'general' || d.includes('general');
@@ -48,7 +49,7 @@ const parseArrayField = (field) => {
 // helpers reused from server/utils/departmentAssignment.js
 
 // Save conservative case sheet
-router.post('/save', auth, requireRole(['doctor','chief','pg']), upload.single('digitalSignature'), async (req, res) => {
+router.post('/save', auth, requireRole(['doctor','chief','pg','ug']), upload.single('digitalSignature'), async (req, res) => {
   try {
     const processedBody = { ...req.body };
     
@@ -83,6 +84,14 @@ router.post('/save', auth, requireRole(['doctor','chief','pg']), upload.single('
 
     const newCase = new ConservativeCase(processedBody);
     await newCase.save();
+
+    if (req.user?.role === 'pg' || req.user?.role === 'ug') {
+      await advanceGeneralCaseReferralIfEligible({
+        patientId: processedBody.patientId,
+        completedDepartmentLabel: 'Endodontics',
+        completedBy: req.user,
+      });
+    }
     
     return res.status(201).json({ success: true, message: 'Case saved successfully', caseId: newCase._id });
   } catch (error) {

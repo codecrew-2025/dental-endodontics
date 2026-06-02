@@ -543,7 +543,7 @@ const DoctorDashboard = () => {
     doctorDepartmentKey.includes('communitydentistry');
   const currentRoleKey = String(user?.role || localStorage.getItem('role') || '').trim().toLowerCase();
   const isSpecialistDoctor = Boolean(
-    doctorDepartmentKey && doctorDepartmentKey !== 'general' && doctorDepartmentKey !== 'generaldentistry'
+    doctorDepartmentKey && doctorDepartmentKey !== 'general' && doctorDepartmentKey !== 'generaldentistry' && !doctorDepartmentKey.includes('oral')
   );
   const canUseReferralQueue = currentRoleKey === 'doctor' && isSpecialistDoctor;
 
@@ -568,7 +568,7 @@ const DoctorDashboard = () => {
     if (departmentKey === 'periodontics') return '/casePortal?dept=periodontics';
     if (departmentKey.includes('oral') || departmentKey.includes('maxillofacial')) return '/oral-medicine';
     if (departmentKey.includes('conservative') || departmentKey.includes('endodontic')) return '/conservative-dentistry';
-    if (departmentKey === 'general' || departmentKey === 'generaldentistry') return '/general-case-sheet';
+    if (departmentKey === 'general' || departmentKey === 'generaldentistry') return '/oral-medicine';
     return '/casePortal?dept=prosthodontics';
   };
 
@@ -3367,7 +3367,7 @@ const DoctorDashboard = () => {
                                   const cid = String(c?._id || '').trim();
                                   const pname = String(c?.patientName || '').trim();
                                   const dept = String(c?.department || '').trim();
-                                  const url = `/general-case-view?patientId=${encodeURIComponent(pid)}&patientName=${encodeURIComponent(pname)}&caseId=${encodeURIComponent(cid)}&department=${encodeURIComponent(dept)}`;
+                                  const url = `/case-sheet-view/${encodeURIComponent(cid)}`;
                                   window.open(url, '_blank');
                                 }}
                                 disabled={!String(c?.patientId || '').trim()}

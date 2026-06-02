@@ -1,15 +1,34 @@
-﻿import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { API_BASE_URL } from '../../config/api';
 import { saveCaseDraft, loadCaseDraft, clearCaseDraft } from '../../utils/caseDraft';
 import { readStoredGeneralCaseXray } from '../../utils/generalCaseXray';
-import { getCurrentPatientId, getSharedXrayImage } from '../../utils/sharedXray';
+import { getCurrentPatientId, getSharedXrayImage, saveSharedXrayImage } from '../../utils/sharedXray';
+import {
+  detectDentalIssues,
+  recommendInvestigations,
+  recommendReferralDepartment,
+  classifyUrgency,
+  generatePatientEducation,
+} from '../../utils/generalDoctorAlgorithm';
 import './OralMedicine.css';
 
 const DRAFT_ROUTE_KEY = '/oral-medicine'; 
 const CASE_CONSENT_NAV_STATE_KEY = 'caseSheetConsentApproved';
 const TOTAL_PAGES = 8;
+
+const REFERRAL_DEPARTMENT_OPTIONS = [
+  'Pedodontics',
+  'Orthodontics',
+  'Periodontics',
+  'Endodontics',
+  'Prosthodontics',
+  'Oral & Maxillofacial Surgery',
+  'Conservative Dentistry',
+  'Public Health Dentistry',
+  'Other',
+];
 
 const INITIAL_FORM = {
   caseSheetNumber: '', date: new Date().toISOString().split('T')[0],
@@ -45,7 +64,7 @@ const INITIAL_FORM = {
   invSpecial: false, invRadiological: false, invBiopsy: false,
   invHistopathological: false, invOthers: false,
   treatmentPlan: '', prognosis: '',
-  referredDepartment: '',
+  referralDepartments: [],
   // Chargeable investigations
   chargeBiopsy: false,
   chargeExfoliativeCytology: false,
@@ -81,6 +100,15 @@ const OralMedicine = () => {
   const [messageBox, setMessageBox] = useState({ show: false, title: '', message: '' });
   const [showConsentPrompt, setShowConsentPrompt] = useState(false);
   const [consentRedirectTarget, setConsentRedirectTarget] = useState('');
+  const [referralPickerValue, setReferralPickerValue] = useState('');
+  
+  // General Doctor Algorithm recommendations
+  const [clinicalIssues, setClinicalIssues] = useState([]);
+  const [recommendedInvestigations, setRecommendedInvestigations] = useState([]);
+  const [recommendedDepartments, setRecommendedDepartments] = useState([]);
+  const [urgencyLevel, setUrgencyLevel] = useState({ level: 'ROUTINE', recommendation: '' });
+  const [patientEducation, setPatientEducation] = useState('');
+  
   const draftTimerRef = useRef(null);
 
   const patientId = localStorage.getItem('CurrentpatientId') || '';
@@ -213,19 +241,6 @@ const OralMedicine = () => {
             ? { pastMedicalHistory: mi.pastMedicalHistory.filter(v => v !== 'None').join(', ') } : {}),
         }));
 
-        // Auto-fetch referredDepartment from the patient's general case sheet
-        try {
-          const gcRes = await fetch(`${API_BASE_URL}/api/general/patient/${pid}`, { headers });
-          if (gcRes.ok) {
-            const gcData = await gcRes.json();
-            const cases = Array.isArray(gcData?.data) ? gcData.data : (gcData?.data ? [gcData.data] : []);
-            // Get the most recent general case that has a referredDepartment
-            const latestWithRef = cases.find(c => c.referredDepartment && c.referredDepartment.trim());
-            if (latestWithRef?.referredDepartment && isMounted) {
-              setForm(prev => ({ ...prev, referredDepartment: latestWithRef.referredDepartment }));
-            }
-          }
-        } catch { /* silently ignore — referredDepartment stays as user-selected */ }
         const drug = toListString(p.vitals?.drugAllergies);
         const known = toListString(p.medicalInfo?.knownAllergies);
         const diet = toListString(p.vitals?.dietAllergies);
@@ -255,16 +270,6 @@ const OralMedicine = () => {
 
   useEffect(() => { window.scrollTo(0, 0); }, [currentPage]);
 
-  // Auto-set referredDepartment to the doctor's own department on first load
-  useEffect(() => {
-    const dept = user?.department
-      || localStorage.getItem('doctorDepartment')
-      || localStorage.getItem('ugDepartment')
-      || localStorage.getItem('pgDepartment')
-      || 'Oral Medicine and Radiology';
-    setForm(prev => prev.referredDepartment ? prev : { ...prev, referredDepartment: dept });
-  }, []); // eslint-disable-line
-
   const formatAllergyTicker = (raw) => {
     const r = (raw || '').trim();
     if (!r) return 'Drug Allergies: None';
@@ -282,6 +287,42 @@ const OralMedicine = () => {
     setForm(prev => ({ ...prev, [field]: value }));
     setErrors(prev => ({ ...prev, [field]: '' }));
   }, []);
+
+  // General Doctor Algorithm: Calculate clinical recommendations
+  useEffect(() => {
+    // Debounce algorithm execution to avoid excessive calculations
+    const timer = setTimeout(() => {
+      const issues = detectDentalIssues(form);
+      const investigations = recommendInvestigations(form, issues);
+      const departments = recommendReferralDepartment(issues, parseInt(form.age, 10), form.provisionalDiagnosis);
+      const urgency = classifyUrgency(issues, form);
+      const education = generatePatientEducation(issues);
+
+      setClinicalIssues(issues);
+      setRecommendedInvestigations(investigations);
+      setRecommendedDepartments(departments);
+      setUrgencyLevel(urgency);
+      setPatientEducation(education);
+
+      // Auto-populate first referral priority if none selected
+      const currentReferral = Array.isArray(form.referralDepartments) ? form.referralDepartments : [];
+      if (departments.length > 0 && currentReferral.length === 0) {
+        setForm(prev => ({ ...prev, referralDepartments: [departments[0]] }));
+      }
+    }, 800);
+
+    return () => clearTimeout(timer);
+  }, [
+    form.age,
+    form.dentalCaries,
+    form.missingTeeth,
+    form.gingival,
+    form.lesionInspection,
+    form.provisionalDiagnosis,
+    form.occlusion,
+    form.tmjInspection,
+    form.calculusAndStains,
+  ]);
 
   const showToast = (msg, type = 'success') => {
     setToast({ msg, type });
@@ -339,7 +380,20 @@ const OralMedicine = () => {
         reader.onerror = reject;
         reader.readAsDataURL(file);
       });
-      const payload = { ...form, patientId, patientName: form.patientName || patientName, doctorId, doctorName, age: Number(form.age) || 0, gender: form.sex };
+      const referralDepartments = Array.isArray(form.referralDepartments)
+        ? form.referralDepartments.map((d) => String(d || '').trim()).filter(Boolean)
+        : [];
+      const primaryReferral = referralDepartments[0] || '';
+      const payload = {
+        ...form,
+        referredDepartment: primaryReferral,
+        patientId,
+        patientName: form.patientName || patientName,
+        doctorId,
+        doctorName,
+        age: Number(form.age) || 0,
+        gender: form.sex,
+      };
       if (payload.digitalSignature instanceof File) {
         payload.digitalSignature = await fileToDataUrl(payload.digitalSignature);
       }
@@ -373,11 +427,50 @@ const OralMedicine = () => {
         return;
       }
       if (res.ok) {
+        if (referralDepartments.length > 0) {
+          const referralRes = await fetch(buildApiUrl('/api/general/save'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({
+              patientId,
+              patientName: form.patientName || patientName,
+              doctorId,
+              doctorName,
+              chiefComplaint: form.chiefComplaint,
+              presentIllness: form.historyOfPresentIllness,
+              pastMedical: form.pastMedicalHistory,
+              pastDental: form.pastDentalHistory,
+              personalHistory: form.personalHistory,
+              familyHistory: form.familyHistory,
+              clinicalFindings: form.summary,
+              provisionalDiagnosis: form.provisionalDiagnosis,
+              investigations: form.invRadiologicalNotes,
+              finalDiagnosis: form.clinicalDiagnosis,
+              description: '',
+              generalDescription: form.summary,
+              selectedDepartments: referralDepartments,
+              treatmentPlan: form.treatmentPlan,
+              xrayImage: xrayPreview || '',
+            }),
+          });
+
+          const referralData = await referralRes.json().catch(() => ({}));
+          if (referralRes.status === 401) {
+            showMessageBox('Session Expired', 'Your session has expired. Please log in again.');
+            setTimeout(() => navigate('/login'), 1500);
+            return;
+          }
+          if (!referralRes.ok) {
+            showMessageBox('Referral Error', referralData.message || 'Failed to create referral case sheet.');
+            return;
+          }
+        }
+
         if (data.data?._id) localStorage.setItem('caseId', data.data._id);
         await clearCaseDraft({ patientId, routeKey: DRAFT_ROUTE_KEY });
         const pName = form.patientName || patientName || 'Patient';
-        const referral = form.referredDepartment ? `\n\nReferred to: ${form.referredDepartment}` : '';
-        showMessageBox('✅ Case Sheet Submitted', `Oral Medicine & Radiology has completed the case sheet for ${pName}.\n\nTreatment plan and diagnosis have been recorded successfully.${referral}`);
+        const referral = referralDepartments.length ? `\n\nReferred priority: ${referralDepartments.join(' → ')}` : '';
+        showMessageBox('✅ General Department Case Sheet Submitted', `Case sheet for ${pName} has been completed by General Department.\n\nInitial diagnosis and referral recommendations have been recorded successfully.${referral}`);
         const role = user?.role || localStorage.getItem('role') || '';
         const dashRoute = role.includes('ug') ? '/ug-dashboard'
           : role.includes('pg') ? '/pg-dashboard'
@@ -394,6 +487,34 @@ const OralMedicine = () => {
     }
   };
 
+  const addReferralDepartment = (department) => {
+    const value = String(department || '').trim();
+    if (!value) return;
+    const current = Array.isArray(form.referralDepartments) ? form.referralDepartments : [];
+    if (current.includes(value)) {
+      showToast('Department already added.', 'error');
+      return;
+    }
+    setForm(prev => ({ ...prev, referralDepartments: [...(Array.isArray(prev.referralDepartments) ? prev.referralDepartments : []), value] }));
+    setReferralPickerValue('');
+  };
+
+  const moveReferralDepartment = (fromIndex, toIndex) => {
+    const current = Array.isArray(form.referralDepartments) ? [...form.referralDepartments] : [];
+    if (fromIndex < 0 || fromIndex >= current.length) return;
+    if (toIndex < 0 || toIndex >= current.length) return;
+    const [item] = current.splice(fromIndex, 1);
+    current.splice(toIndex, 0, item);
+    setForm(prev => ({ ...prev, referralDepartments: current }));
+  };
+
+  const removeReferralDepartment = (index) => {
+    const current = Array.isArray(form.referralDepartments) ? [...form.referralDepartments] : [];
+    if (index < 0 || index >= current.length) return;
+    current.splice(index, 1);
+    setForm(prev => ({ ...prev, referralDepartments: current }));
+  };
+
   const ui = (field, type = 'text', style = {}) => (
     <input className="omr-uinput" type={type} value={form[field] || ''} onChange={e => set(field, e.target.value)} style={style} />
   );
@@ -401,15 +522,48 @@ const OralMedicine = () => {
     <textarea className={`omr-ta${large ? ' omr-ta-lg' : ''}`} rows={rows} value={form[field] || ''} onChange={e => set(field, e.target.value)} />
   );
 
+  const handleXrayUpload = (file) => {
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      showToast('File size exceeds 5MB limit.', 'error');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const dataUrl = e.target.result;
+      setXrayPreview(dataUrl);
+      const pid = getCurrentPatientId() || patientId;
+      if (pid) {
+        saveSharedXrayImage(pid, {
+          dataUrl,
+          name: file.name,
+          type: file.type,
+          size: file.size
+        });
+        showToast('Oral X-ray uploaded and saved successfully!', 'success');
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
   /* ── PAGE 0 — Patient Info & History (PDF Page 1) ── */
   const renderPage0 = () => (
     <div className="omr-page-content">
-      {xrayPreview && (
-        <div className="xray-preview-container" style={{ marginBottom: 16 }}>
-          <label className="omr-lbl">X-ray Image:</label>
-          <img src={xrayPreview} alt="X-ray preview" className="xray-preview" />
-        </div>
-      )}
+      <div style={{ background: 'rgba(255,255,255,0.05)', padding: '16px', borderRadius: '8px', marginBottom: '16px', border: '1px solid rgba(165,180,252,0.3)' }}>
+        <h3 style={{ margin: '0 0 12px', fontSize: '1rem', color: '#a5b4fc' }}>Upload Oral X-ray</h3>
+        <input 
+          type="file" 
+          accept="image/*" 
+          onChange={e => handleXrayUpload(e.target.files[0])} 
+          style={{ marginBottom: xrayPreview ? '12px' : 0, display: 'block', color: '#fff' }} 
+        />
+        {xrayPreview && (
+          <div className="xray-preview-container">
+            <label className="omr-lbl" style={{ marginBottom: '8px', display: 'block' }}>Oral X-ray Preview:</label>
+            <img src={xrayPreview} alt="Oral X-ray preview" className="xray-preview" style={{ maxWidth: '100%', maxHeight: '300px', borderRadius: '6px' }} />
+          </div>
+        )}
+      </div>
       <h2 className="omr-sheet-title" style={{ marginTop: 8 }}>ORAL MEDICINE AND RADIOLOGY</h2>
       <p className="omr-section-title">CHIEF COMPLAINT:</p>
       {ta('chiefComplaint', 4, true)}
@@ -524,6 +678,61 @@ const OralMedicine = () => {
   const renderPage7 = () => (
     <div className="omr-page-content">
       <h2 className="omr-sheet-title">ORAL MEDICINE AND RADIOLOGY</h2>
+
+      {/* --- AI Recommendations Section --- */}
+      <div style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(165,180,252,0.4)', borderRadius: '8px', padding: '16px', marginBottom: '24px' }}>
+        <h3 style={{ margin: '0 0 12px', color: '#a5b4fc', fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span>🤖</span> AI Clinical Recommendations
+        </h3>
+        
+        {clinicalIssues.length > 0 ? (
+          <div style={{ display: 'grid', gap: '12px' }}>
+            <div>
+              <strong style={{ color: '#fff', fontSize: '0.9rem' }}>Detected Issues:</strong>
+              <ul style={{ margin: '4px 0 0', paddingLeft: '20px', color: '#c7d2fe', fontSize: '0.85rem' }}>
+                {clinicalIssues.map((issue, idx) => <li key={idx}>{issue}</li>)}
+              </ul>
+            </div>
+            
+            {recommendedInvestigations.length > 0 && (
+              <div>
+                <strong style={{ color: '#fff', fontSize: '0.9rem' }}>Suggested Investigations:</strong>
+                <ul style={{ margin: '4px 0 0', paddingLeft: '20px', color: '#c7d2fe', fontSize: '0.85rem' }}>
+                  {recommendedInvestigations.map((inv, idx) => <li key={idx}>{inv}</li>)}
+                </ul>
+              </div>
+            )}
+
+            {recommendedDepartments.length > 0 && (
+              <div>
+                <strong style={{ color: '#fff', fontSize: '0.9rem' }}>Suggested Referrals:</strong>
+                <div style={{ margin: '4px 0 0', color: '#c7d2fe', fontSize: '0.85rem' }}>
+                  {recommendedDepartments.join(', ')}
+                </div>
+              </div>
+            )}
+
+            <div>
+              <strong style={{ color: '#fff', fontSize: '0.9rem' }}>Urgency Level:</strong>
+              <div style={{ margin: '4px 0 0', color: urgencyLevel.level === 'EMERGENCY' ? '#fca5a5' : urgencyLevel.level === 'URGENT' ? '#fcd34d' : '#86efac', fontSize: '0.85rem', fontWeight: 'bold' }}>
+                {urgencyLevel.level} - {urgencyLevel.recommendation}
+              </div>
+            </div>
+
+            {patientEducation && (
+              <div>
+                <strong style={{ color: '#fff', fontSize: '0.9rem' }}>Patient Education:</strong>
+                <p style={{ margin: '4px 0 0', color: '#c7d2fe', fontSize: '0.85rem', whiteSpace: 'pre-line' }}>
+                  {patientEducation}
+                </p>
+              </div>
+            )}
+          </div>
+        ) : (
+          <p style={{ margin: 0, color: '#9ca3af', fontSize: '0.85rem', fontStyle: 'italic' }}>Fill out examination fields to generate AI recommendations.</p>
+        )}
+      </div>
+      {/* --- End AI Recommendations Section --- */}
       <p className="omr-section-title">Provisional Diagnosis:</p>{ta('provisionalDiagnosis', 3)}
       <p className="omr-section-title">Differential Diagnosis:</p>{ta('differentialDiagnosis', 3)}
       <p className="omr-section-title">Investigation:</p>
@@ -587,20 +796,86 @@ const OralMedicine = () => {
           {ta('chargeDescription', 3)}
         </div>
       </div>
-      <p className="omr-section-title" style={{ marginTop: 24 }}>Referred to Department:</p>
-      <select className="omr-uinput" value={form.referredDepartment} onChange={e => set('referredDepartment', e.target.value)} style={{ maxWidth: 320, marginBottom: 8 }}>
-        <option value="">— None / No Referral —</option>
-        <option value="Pedodontics">Pedodontics</option>
-        <option value="Orthodontics">Orthodontics</option>
-        <option value="Periodontics">Periodontics</option>
-        <option value="Endodontics">Endodontics</option>
-        <option value="Prosthodontics">Prosthodontics</option>
-        <option value="Oral & Maxillofacial Surgery">Oral &amp; Maxillofacial Surgery</option>
-        <option value="Conservative Dentistry">Conservative Dentistry</option>
-        <option value="Oral Medicine & Radiology">Oral Medicine &amp; Radiology</option>
-        <option value="Public Health Dentistry">Public Health Dentistry</option>
-        <option value="Other">Other</option>
-      </select>
+      <p className="omr-section-title" style={{ marginTop: 24 }}>Referred to Department (Priority Order):</p>
+      <div style={{ maxWidth: 520, marginBottom: 8 }}>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+          <select
+            className="omr-uinput"
+            value={referralPickerValue}
+            onChange={e => setReferralPickerValue(e.target.value)}
+            style={{ maxWidth: 320 }}
+          >
+            <option value="">— Select department —</option>
+            {REFERRAL_DEPARTMENT_OPTIONS.map((d) => (
+              <option key={d} value={d}>{d}</option>
+            ))}
+          </select>
+          <button
+            type="button"
+            className="omr-btn-submit"
+            onClick={() => addReferralDepartment(referralPickerValue)}
+            disabled={!referralPickerValue}
+            style={{ padding: '10px 14px', width: 'auto' }}
+          >
+            Add
+          </button>
+        </div>
+
+        {Array.isArray(form.referralDepartments) && form.referralDepartments.length > 0 ? (
+          <div style={{ marginTop: 12 }}>
+            {form.referralDepartments.map((dept, idx) => (
+              <div
+                key={`${dept}-${idx}`}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 10,
+                  padding: '10px 12px',
+                  borderRadius: 8,
+                  border: '1px solid rgba(165,180,252,0.3)',
+                  background: 'rgba(255,255,255,0.06)',
+                  marginBottom: 8,
+                }}
+              >
+                <div style={{ fontWeight: 700, color: '#fff' }}>{idx + 1}. {dept}</div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    type="button"
+                    className="omr-btn-prev"
+                    onClick={() => moveReferralDepartment(idx, idx - 1)}
+                    disabled={idx === 0}
+                    style={{ padding: '8px 10px', width: 'auto' }}
+                  >
+                    ↑
+                  </button>
+                  <button
+                    type="button"
+                    className="omr-btn-prev"
+                    onClick={() => moveReferralDepartment(idx, idx + 1)}
+                    disabled={idx === form.referralDepartments.length - 1}
+                    style={{ padding: '8px 10px', width: 'auto' }}
+                  >
+                    ↓
+                  </button>
+                  <button
+                    type="button"
+                    className="omr-btn-prev"
+                    onClick={() => removeReferralDepartment(idx)}
+                    style={{ padding: '8px 10px', width: 'auto' }}
+                  >
+                    Remove
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p style={{ marginTop: 10, color: '#c7d2fe', fontSize: '0.9rem' }}>
+            No referral departments selected.
+          </p>
+        )}
+      </div>
 
       {/* Doctor info below referred department */}
       <div style={{
@@ -622,7 +897,7 @@ const OralMedicine = () => {
       </div>
       <div className="form-group" style={{ marginTop: 32 }}>
         <label className="omr-lbl">Doctor's Digital Signature: <span style={{ color: '#b91c1c' }}>*</span></label>
-        <input type="file" accept="image/*" onChange={e => handleFileChange(e.target.files[0])} style={{ display: 'block', marginTop: 8 }} />
+        <input type="file" accept="image/png,image/jpeg" onChange={e => handleFileChange(e.target.files[0])} style={{ display: 'block', marginTop: 8 }} />
         {signaturePreview && (
           <div style={{ marginTop: 12 }}>
             <img src={signaturePreview} alt="Signature preview" style={{ maxHeight: 80, border: '1px solid #ccc', borderRadius: 4 }} />
@@ -668,18 +943,12 @@ const OralMedicine = () => {
 
       {/* Allergy banner — pushed down if critical banner is showing */}
       {showAllergy && (
-        <div style={{
-          position: 'fixed', top: showCritical && criticalCondition ? 44 : 0, left: 0, right: 0, width: '100vw', zIndex: 99999,
-          background: '#fff3cd', borderBottom: '2px solid #f59e0b',
-          display: 'flex', alignItems: 'center', gap: 10, padding: '10px 24px',
-          boxSizing: 'border-box', boxShadow: '0 3px 10px rgba(0,0,0,0.18)',
-        }}>
-          <span style={{ fontSize: 18, color: '#d97706', flexShrink: 0 }}>⚠️</span>
-          <span style={{ flex: 1, fontWeight: 700, fontSize: '0.9rem', color: '#92400e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {formatAllergyTicker(allergyMessage)}
-          </span>
-          <button onClick={() => setShowAllergy(false)} aria-label="Dismiss"
-            style={{ marginLeft: 'auto', background: 'transparent', border: 'none', fontSize: 20, color: '#92400e', cursor: 'pointer', flexShrink: 0, lineHeight: 1, padding: '0 4px' }}>×</button>
+        <div className="allergy-alert" id="patientAllergyAlert" style={{ top: showCritical && criticalCondition ? 44 : 0 }}>
+          <span className="alert-icon">⚠️</span>
+          <div className="allergy-flow-window">
+            <span id="allergyMessage">{formatAllergyTicker(allergyMessage)}</span>
+          </div>
+          <button onClick={() => setShowAllergy(false)} className="close-btn" aria-label="Dismiss" style={{ zIndex: 100000 }}>×</button>
         </div>
       )}
 

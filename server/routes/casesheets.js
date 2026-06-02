@@ -32,12 +32,13 @@ const doctorDepartmentCaseScope = {
   partialdenture: ['partial_denture'],
   partial: ['partial_denture'],
   oral: ['oral'],
+  general: ['oral'],
+  generaldentistry: ['oral'],
   oralandmaxillofacial: ['oral'],
   oralandmaxillofacialsurgery: ['oral'],
   oralmedicine: ['oral'],
   oralmedicineandradiology: ['oral'],
-  oralmedicineradiology: ['oral'],
-  general: []
+  oralmedicineradiology: ['oral']
 };
 
 const canDoctorAccessDepartment = (user, caseDepartmentKey) => {
@@ -152,14 +153,14 @@ router.get('/pg/history', auth, requireRole(['pg', 'ug']), async (req, res) => {
       { model: Implant, department: 'Implant', departmentKey: 'implant' },
       { model: ImplantPatientCase, department: 'Implant Patient Surgery', departmentKey: 'implant_patient' },
       { model: PartialDentureCase, department: 'Partial Denture', departmentKey: 'partial_denture' },
+      // General Department (primary screening via Oral Medicine & Radiology form)
+      { model: OralCase, department: 'General', departmentKey: 'oral' },
       {
         model: GeneralCase,
         department: 'General Case',
         departmentKey: 'general',
         query: { $or: [{ doctorId: pgIdentity }, { assignedPgId: pgIdentity }] },
       },
-      { model: OralCase, department: 'Oral Medicine and Radiology', departmentKey: 'oral' },
-      { model: GeneralCase, department: 'General', departmentKey: 'general' },
     ];
 
     const results = await Promise.all(
@@ -290,15 +291,15 @@ router.get('/:caseId', auth, async (req, res) => {
 });
 
 // PUT /api/casesheets/:caseId
-// Allows a PG to update a case sheet ONLY when it is marked as redo/resend.
-// The case must belong to that PG (stored in doctorId), and after update the approval is reset.
-router.put('/:caseId', auth, requireRole(['pg']), async (req, res) => {
+// Allows a PG/UG to update a case sheet ONLY when it is marked as redo/resend.
+// The case must belong to that PG/UG (stored in doctorId), and after update the approval is reset.
+router.put('/:caseId', auth, requireRole(['pg', 'ug']), async (req, res) => {
   try {
     const { caseId } = req.params;
     const pgIdentity = String(req.user?.Identity || '').trim();
 
     if (!pgIdentity) {
-      return res.status(400).json({ success: false, message: 'PG identity missing' });
+      return res.status(400).json({ success: false, message: 'PG/UG identity missing' });
     }
 
     if (!mongoose.Types.ObjectId.isValid(caseId)) {
@@ -361,7 +362,7 @@ router.put('/:caseId', auth, requireRole(['pg']), async (req, res) => {
       department: found.departmentKey,
     });
   } catch (error) {
-    console.error('Error updating casesheet (PG redo edit):', error);
+    console.error('Error updating casesheet (PG/UG redo edit):', error);
     return res.status(500).json({ success: false, message: 'Server error' });
   }
 });

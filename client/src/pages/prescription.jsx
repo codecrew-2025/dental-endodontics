@@ -863,7 +863,7 @@ const Prescription = () => {
   };
 
   const generateTimeSlots = () => {
-    // Detect if the current user belongs to the Oral Medicine department
+    // Detect if the current user belongs to the General department (uses Oral Medicine form)
     const rawDept = String(
       localStorage.getItem('doctorDepartment') ||
       localStorage.getItem('pgDepartment') ||
@@ -871,14 +871,16 @@ const Prescription = () => {
       ''
     ).trim().toLowerCase().replace(/[\s_]+/g, '');
 
-    const isOralDept =
+    const isGeneralDept =
+      rawDept === 'general' ||
+      rawDept === 'generaldentistry' ||
       rawDept.includes('oral') ||
       rawDept === 'oralmedicine' ||
       rawDept === 'oralmedicineandradiology' ||
       rawDept === 'oralmedicineradiology';
 
-    if (isOralDept) {
-      // Oral Medicine: 15-minute slots from 9:00 AM to 2:00 PM
+    if (isGeneralDept) {
+      // General Department: 15-minute slots from 9:00 AM to 2:00 PM
       // Skips lunch break (1:00–2:00 PM) and the 11:00 slot (short break)
       const slotStartsInMinutes = [];
       const lunchStart = 13 * 60; // 1:00 PM
